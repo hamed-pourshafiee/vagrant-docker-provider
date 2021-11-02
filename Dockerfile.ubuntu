@@ -4,17 +4,21 @@ LABEL MAINTAINER="John Rofrano <rofrano@gmail.com>"
 ENV DEBIAN_FRONTEND noninteractive
 
 # Install packages needed for SSH and interactive OS
-RUN apt-get update && \
+# Install a few packages which let apt use package over HTTPS
+RUN apt update && \
     yes | unminimize && \
-    apt-get -y install \
+    apt -y install \
         openssh-server \
         passwd \
         sudo \
+        software-properties-common \
+        apt-transport-https \
+        ca-certificates \
         man-db \
         curl \
         wget \
         vim-tiny && \
-    apt-get -qq clean && \
+    apt -qq clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Enable systemd (from Matthew Warman's mcwarman/vagrant-provider)
@@ -31,6 +35,13 @@ RUN (cd /lib/systemd/system/sysinit.target.wants/; for i in *; do [ $i == system
 RUN systemctl enable ssh.service; 
 EXPOSE 22
 
+RUN curl -sSL https://get.docker.com/ | sh
+RUN systemctl enable docker
+
+# Install docker-compose
+RUN curl -L "https://github.com/docker/compose/releases/download/1.27.4/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+RUN chmod +x /usr/local/bin/docker-compose
+
 # Create the vagrant user
 RUN useradd -m -G sudo -s /bin/bash vagrant && \
     echo "vagrant:vagrant" | chpasswd && \
@@ -43,6 +54,10 @@ RUN mkdir -p /home/vagrant/.ssh; \
 ADD https://raw.githubusercontent.com/hashicorp/vagrant/master/keys/vagrant.pub /home/vagrant/.ssh/authorized_keys
 RUN chmod 600 /home/vagrant/.ssh/authorized_keys; \
     chown -R vagrant:vagrant /home/vagrant/.ssh
+
+# Avoid typing sudo run docker commandsd
+RUN usermod -aG docker vagrant
+RUN newgrp docker
 
 # Run the init daemon
 VOLUME [ "/sys/fs/cgroup" ]
